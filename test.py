@@ -1,3 +1,5 @@
+from __future__ import print_function, division
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -11,7 +13,29 @@ import os
 import copy
 
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs):
+
+# Data augmentation and normalization for training
+# Just normalization for validation
+data_transforms = {'train': transforms.Compose([transforms.ToTensor(),
+                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
+                   'val': transforms.Compose([transforms.ToTensor(),
+                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
+
+data_dir = '/home/jfeinst/Projects/bionoi_files/resnet-test/'
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
+dataloaders = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=4, shuffle=True, num_workers=4)
+               for x in ['train', 'val']}
+dataset_sizes = {x: len(image_datasets[x]) for x in ['train', 'val']}
+class_names = image_datasets['train'].classes
+print('Size of training dataset: ' + str(dataset_sizes['train']))
+print('Size of training dataset: ' + str(dataset_sizes['val']))
+print('Number of classes: ' + str(len(class_names)))
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print('Current device: ' + str(device))
+
+
+
+def train_model(model, criterion, optimizer, scheduler, num_epochs=25):
     since = time.time()
 
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -104,3 +128,26 @@ def visualize_model(model, num_images=6):
                     model.train(mode=was_training)
                     return
         model.train(mode=was_training)
+
+
+model_ft = models.resnet34(pretrained=True)
+num_ftrs = model_ft.fc.in_features
+model_ft.fc = nn.Linear(num_ftrs, 4)
+
+model_ft = model_ft.to(device)
+
+criterion = nn.CrossEntropyLoss()
+
+# Observe that all parameters are being optimized
+optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+
+# Decay LR by a factor of 0.1 every 7 epochs
+exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
+
+total_params = sum(p.numel() for p in model_ft.parameters())
+print(f'{total_params:,} total parameters.')
+total_trainable_params = sum(
+    p.numel() for p in model_ft.parameters() if p.requires_grad)
+print(f'{total_trainable_params:,} training parameters.')
+
+# model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=2)
