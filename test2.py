@@ -10,16 +10,53 @@ import matplotlib.pyplot as plt
 import time
 import os
 import copy
+import argparse
+
+def getArgs():
+    parser = argparse.ArgumentParser('python')
+
+    parser.add_argument('-epoch',
+                        default=30,
+                        type=int,
+                        required=False,
+                        help='number of epochs to train')
+
+    parser.add_argument('-data_dir',
+                        default='../bae-data-images/',
+                        required=False,
+                        help='directory of training images')
+
+    parser.add_argument('-model_file',
+                        default='./log/bionoi_autoencoder_conv.pt',
+                        required=False,
+                        help='file to save the model')
+
+    parser.add_argument('-batch_size',
+                        default=256,
+                        type=int,
+                        required=False,
+                        help='the batch size, normally 2^n.')
+
+    return parser.parse_args()
+
+
+if __name__ == "__main__":
+    args = getArgs()
+
+    num_epochs = args.epoch
+    data_dir = args.data_dir
+    model_file = args.model_file
+    batch_size = args.batch_size
 
 
 data_dir = "/Users/jofeinstein/Documents/bionoi-project/bionoi-test/voronoi_diagrams/yes/"
 model_name = "resnet34"
-num_classes = 8
 batch_size = 8
-num_epochs = 15
+num_epochs = 2
 feature_extract = True
+model_file = './log/resnet34test.pt'
 
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_inception=False):
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     since = time.time()
 
     val_acc_history = []
@@ -29,7 +66,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
     for epoch in range(num_epochs):
         print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-        print('-' * 10)
+        print('-' * 15)
 
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
@@ -56,15 +93,9 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
                     # Special case for inception because in training it has an auxiliary output. In train
                     #   mode we calculate the loss by summing the final output and the auxiliary output
                     #   but in testing we only consider the final output.
-                    if is_inception and phase == 'train':
-                        # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
-                        outputs, aux_outputs = model(inputs)
-                        loss1 = criterion(outputs, labels)
-                        loss2 = criterion(aux_outputs, labels)
-                        loss = loss1 + 0.4*loss2
-                    else:
-                        outputs = model(inputs)
-                        loss = criterion(outputs, labels)
+
+                    outputs = model(inputs)
+                    loss = criterion(outputs, labels)
 
                     _, preds = torch.max(outputs, 1)
 
@@ -80,7 +111,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f}'.format(phase, epoch_loss) + '\n' + '{} Acc: {:.4f}'.format(phase, epoch_acc))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -93,10 +124,11 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, is_ince
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    print('Best val Acc: {:4f}'.format(best_acc) + '\n')
 
     # load best model weights
     model.load_state_dict(best_model_wts)
+
     return model, val_acc_history
 
 
@@ -120,10 +152,6 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
     return model_ft, input_size
 
 
-# Initialize the model for this run
-model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
-
-
 
 # Data augmentation and normalization for training
 # Just normalization for validation
@@ -132,22 +160,38 @@ data_transforms = {'train': transforms.Compose([transforms.Resize(256),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
                    'val': transforms.Compose([transforms.Resize(256),
                                               transforms.ToTensor(),
-                                              transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),}
+                                              transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
-print("Initializing Datasets and Dataloaders...")
+print("Initializing Datasets and Dataloaders..." + '\n')
 
 # Create training and validation datasets
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
 # Create training and validation dataloaders
 dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in ['train', 'val']}
 
+
+class_names = image_datasets['train'].classes
+num_classes = len(class_names)
+
+print('Size of training dataset: ' + str(image_datasets['train']) + '\n')
+print('Size of training dataset: ' + str(image_datasets['val']) + '\n')
+print('Number of classes: ' + str(len(class_names)) + '\n')
+
+
 # Detect if we have a GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print('Current device: ' + str(device) + '\n')
 
 
+# Initialize the model for this run
+model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
 
 # Send the model to GPU
 model_ft = model_ft.to(device)
+
+if torch.cuda.device_count() > 1:
+    print("Using " + str(torch.cuda.device_count()) + " GPUs...")
+    model_ft = nn.DataParallel(model_ft)
 
 # Gather the parameters to be optimized/updated in this run. If we are
 #  finetuning we will be updating all parameters. However, if we are
@@ -159,13 +203,20 @@ print("Params to learn:")
 if feature_extract:
     params_to_update = []
     for name,param in model_ft.named_parameters():
-        if param.requires_grad == True:
+        if param.requires_grad:
             params_to_update.append(param)
             print("\t",name)
 else:
     for name,param in model_ft.named_parameters():
-        if param.requires_grad == True:
+        if param.requires_grad:
             print("\t",name)
+
+total_params = sum(p.numel() for p in model_ft.parameters())
+print('Total parameters: ' + str(total_params))
+total_trainable_params = sum(
+    p.numel() for p in model_ft.parameters() if p.requires_grad)
+print('Training parameters: ' + str(total_trainable_params) + '\n')
+
 
 # Observe that all parameters are being optimized
 optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
@@ -174,5 +225,7 @@ optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
 criterion = nn.CrossEntropyLoss()
 
 # Train and evaluate
-model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs, is_inception=False)
+trained_model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
+# save the model
+torch.save(trained_model_ft.state_dict(), model_file)
