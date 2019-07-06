@@ -12,9 +12,9 @@ import os
 import copy
 
 
-data_dir = "./data/hymenoptera_data"
+data_dir = "/Users/jofeinstein/Documents/bionoi-project/bionoi-test/voronoi_diagrams/yes/"
 model_name = "resnet34"
-num_classes = 2
+num_classes = 8
 batch_size = 8
 num_epochs = 15
 feature_extract = True
@@ -127,9 +127,11 @@ model_ft, input_size = initialize_model(model_name, num_classes, feature_extract
 
 # Data augmentation and normalization for training
 # Just normalization for validation
-data_transforms = {'train': transforms.Compose([transforms.ToTensor(),
+data_transforms = {'train': transforms.Compose([transforms.Resize(256),
+                                                transforms.ToTensor(),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
-                   'val': transforms.Compose([transforms.ToTensor(),
+                   'val': transforms.Compose([transforms.Resize(256),
+                                              transforms.ToTensor(),
                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),}
 
 print("Initializing Datasets and Dataloaders...")

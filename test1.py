@@ -42,6 +42,7 @@ features, labels = next(trainiter)
 feature_size = features.shape[1]*features.shape[2]*features.shape[3]
 
 model = models.resnet34(pretrained=True)
+feature_extract = True
 num_ftrs = model.fc.in_features
 model.fc = nn.Linear(num_ftrs, 4)
 
