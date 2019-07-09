@@ -28,7 +28,7 @@ def getArgs():
                         help='directory of training images')
 
     parser.add_argument('-model_file',
-                        default='./log/bionoi_autoencoder_conv.pt',
+                        default='./log/resnet34test.pt',
                         required=False,
                         help='file to save the model')
 
@@ -37,6 +37,12 @@ def getArgs():
                         type=int,
                         required=False,
                         help='the batch size, normally 2^n.')
+
+    parser.add_argument('-feature_extract',
+                        default=True,
+                        type=bool,
+                        required=False)
+
 
     return parser.parse_args()
 
@@ -48,14 +54,10 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     model_file = args.model_file
     batch_size = args.batch_size
+    feature_extract = args.feature_extract
 
-
-data_dir = "/home/jfeinst/Projects/bionoi_files/resnet-test"
-model_name = "resnet34"
-batch_size = 8
+data_dir = "/Users/jofeinstein/Documents/bionoi-project/bionoi-test/voronoi_diagrams/resnet-test/fold0/"
 num_epochs = 2
-feature_extract = True
-model_file = 'resnet34test.pt'
 
 # Data augmentation and normalization
 data_transforms = {'train': transforms.Compose([transforms.Resize(256),
@@ -79,9 +81,7 @@ dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
 class_names = image_datasets['train'].classes
 num_classes = len(class_names)
 
-print('Size of training dataset: ' + str(image_datasets['train']))
-print('Size of training dataset: ' + str(image_datasets['val']))
-print('Number of classes: ' + str(len(class_names)))
+print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' + str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
 
 # Detect if we have a GPU available
@@ -90,7 +90,7 @@ print('Current device: ' + str(device))
 
 
 # Initialize the model for this run
-model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
+model_ft, input_size = initialize_model(num_classes, feature_extract, use_pretrained=True)
 
 
 # Send the model to GPU
@@ -104,23 +104,17 @@ if torch.cuda.device_count() > 1:
 
 # Gather the parameters to be optimized/updated in this run.
 params_to_update = model_ft.parameters()
-print("Params to learn:")
 if feature_extract:
     params_to_update = []
     for name,param in model_ft.named_parameters():
         if param.requires_grad:
             params_to_update.append(param)
-            print("\t",name)
-else:
-    for name,param in model_ft.named_parameters():
-        if param.requires_grad:
-            print("\t",name)
 
 
 total_params = sum(p.numel() for p in model_ft.parameters())
 total_trainable_params = sum(
     p.numel() for p in model_ft.parameters() if p.requires_grad)
-print('Total parameters: ' + str(total_params) + 'Training parameters: ' + str(total_trainable_params))
+print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
 
 
 # Observe that all parameters are being optimized

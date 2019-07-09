@@ -40,6 +40,11 @@ def getArgs():
                         required=False,
                         help='number of folds to cross validate with')
 
+    parser.add_argument('-feature_extract',
+                        default=True,
+                        type=bool,
+                        required=False)
+
     return parser.parse_args()
 
 
@@ -50,12 +55,12 @@ if __name__ == "__main__":
     data_dir = args.data_dir
     batch_size = args.batch_size
     fold = args.fold
+    feature_extract = args.feature_extract
 
-data_dir = "/home/jfeinst/Projects/bionoi_files/resnet-test"
+data_dir = "/Users/jofeinstein/Documents/bionoi-project/bionoi-test/voronoi_diagrams/resnet-test/"
 model_name = "resnet34"
-batch_size = 8
-num_epochs = 2
-feature_extract = True
+batch_size = 32
+num_epochs = 5
 
 
 # Data transformations - normalize values are resnet standard
@@ -95,12 +100,10 @@ for i in range(fold):
     class_names = image_datasets['train'].classes
     num_classes = len(class_names)
 
-    print('Size of training dataset: ' + str(image_datasets['train']))
-    print('Size of training dataset: ' + str(image_datasets['val']))
-    print('Number of classes: ' + str(num_classes))
+    print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' + str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
     # Initialize the model
-    model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
+    model_ft, input_size = initialize_model(num_classes, feature_extract, use_pretrained=True)
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
@@ -111,23 +114,17 @@ for i in range(fold):
 
     # Gather the parameters to be optimized/updated in this run.
     params_to_update = model_ft.parameters()
-    print("Params to learn:")
     if feature_extract:
         params_to_update = []
         for name, param in model_ft.named_parameters():
             if param.requires_grad:
                 params_to_update.append(param)
-                print("\t", name)
-    else:
-        for name, param in model_ft.named_parameters():
-            if param.requires_grad:
-                print("\t", name)
 
     # Print the number of parameters being trained
     total_params = sum(p.numel() for p in model_ft.parameters())
     total_trainable_params = sum(
         p.numel() for p in model_ft.parameters() if p.requires_grad)
-    print('Total parameters: ' + str(total_params) + 'Training parameters: ' + str(total_trainable_params))
+    print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
 
     # Observe that all parameters are being optimized
     optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
@@ -144,7 +141,7 @@ for i in range(fold):
                                                         num_epochs=num_epochs)
 
     # Save the model
-    torch.save(trained_model_ft.state_dict(), model_name + fold_lst[i] + '.pt')
+    torch.save(trained_model_ft.state_dict(), './log/' + model_name + fold_lst[i] + '.pt')
 
     # Save the accuracy and loss history
     final_val_acc_history.append(val_acc_history)
