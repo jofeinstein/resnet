@@ -49,12 +49,12 @@ if __name__ == "__main__":
     batch_size = args.batch_size
 
 
-data_dir = "/Users/jofeinstein/Documents/bionoi-project/bionoi-test/voronoi_diagrams/yes/"
+data_dir = "/home/jfeinst/Projects/bionoi_files/resnet-test"
 model_name = "resnet34"
 batch_size = 8
 num_epochs = 2
 feature_extract = True
-model_file = './log/resnet34test.pt'
+model_file = 'resnet34test.pt'
 
 def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     since = time.time()
@@ -90,10 +90,6 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 # track history if only in train
                 with torch.set_grad_enabled(phase == 'train'):
                     # Get model outputs and calculate loss
-                    # Special case for inception because in training it has an auxiliary output. In train
-                    #   mode we calculate the loss by summing the final output and the auxiliary output
-                    #   but in testing we only consider the final output.
-
                     outputs = model(inputs)
                     loss = criterion(outputs, labels)
 
@@ -138,10 +134,8 @@ def set_parameter_requires_grad(model, feature_extracting):
             param.requires_grad = False
 
 
-
 def initialize_model(model_name, num_classes, feature_extract, use_pretrained=True):
-    # Initialize these variables which will be set in this if statement. Each of these
-    #   variables is model specific.
+    # Initialize variables
     model_ft = None
     model_ft = models.resnet34(pretrained=use_pretrained)
     set_parameter_requires_grad(model_ft, feature_extract)
@@ -153,8 +147,7 @@ def initialize_model(model_name, num_classes, feature_extract, use_pretrained=Tr
 
 
 
-# Data augmentation and normalization for training
-# Just normalization for validation
+# Data augmentation and normalization
 data_transforms = {'train': transforms.Compose([transforms.Resize(256),
                                                 transforms.ToTensor(),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
@@ -162,8 +155,8 @@ data_transforms = {'train': transforms.Compose([transforms.Resize(256),
                                               transforms.ToTensor(),
                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
-print("Initializing Datasets and Dataloaders..." + '\n')
 
+print("Initializing Datasets and Dataloaders..." + '\n')
 # Create training and validation datasets
 image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
 # Create training and validation dataloaders
@@ -186,18 +179,17 @@ print('Current device: ' + str(device) + '\n')
 # Initialize the model for this run
 model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
 
+
 # Send the model to GPU
 model_ft = model_ft.to(device)
+
 
 if torch.cuda.device_count() > 1:
     print("Using " + str(torch.cuda.device_count()) + " GPUs...")
     model_ft = nn.DataParallel(model_ft)
 
-# Gather the parameters to be optimized/updated in this run. If we are
-#  finetuning we will be updating all parameters. However, if we are
-#  doing feature extract method, we will only update the parameters
-#  that we have just initialized, i.e. the parameters with requires_grad
-#  is True.
+
+# Gather the parameters to be optimized/updated in this run.
 params_to_update = model_ft.parameters()
 print("Params to learn:")
 if feature_extract:
@@ -211,6 +203,7 @@ else:
         if param.requires_grad:
             print("\t",name)
 
+
 total_params = sum(p.numel() for p in model_ft.parameters())
 print('Total parameters: ' + str(total_params))
 total_trainable_params = sum(
@@ -221,11 +214,15 @@ print('Training parameters: ' + str(total_trainable_params) + '\n')
 # Observe that all parameters are being optimized
 optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
 
+
 # Setup the loss fxn
 criterion = nn.CrossEntropyLoss()
+
 
 # Train and evaluate
 trained_model_ft, hist = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
 
+
 # save the model
 torch.save(trained_model_ft.state_dict(), model_file)
+
