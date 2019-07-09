@@ -1,0 +1,24 @@
+1. Submit the job below
+
+    #!/bin/bash
+    #PBS -l nodes=1:ppn=20
+    #PBS -l walltime=72:00:00
+    #PBS -q k40
+    #PBS -N bionoi_autoencoder
+    #PBS -A loni_bionoi01
+    #PBS -j oe
+
+    sleep 100000000000
+
+2. ssh into the given node
+3. use the following commands
+
+    singularity shell -B /project,/work,/var --nv /home/admin/singularity/pytorch-1.0.0-dockerhub-v3.simg
+    unset PYTHONPATH
+    unset PYTHONHOME
+    conda create -n pytorch python=3.7
+    source activate pytorch
+    conda install pytorch torchvision cudatoolkit=9.0 -c pytorch
+    export LD_LIBRARY_PATH=/usr/local/onnx/onnx:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib64:/.singularity.d/libs
+    cd PATH_CONTAINING_PYTHON_FILE
+    python kfoldvc-resnet.py -data_dir PATH_TO_DATA_DIR -batch_size 512
