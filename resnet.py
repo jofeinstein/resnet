@@ -1,9 +1,8 @@
-from __future__ import print_function, division
-
+from __future__ import print_function
+from __future__ import division
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.optim import lr_scheduler
 import numpy as np
 import torchvision
 from torchvision import datasets, models, transforms
@@ -11,11 +10,12 @@ import matplotlib.pyplot as plt
 import time
 import os
 import copy
+import argparse
+from utils import train_model, list_plot, initialize_model
 
-plt.ion()
-
-'''def getArgs():
+def getArgs():
     parser = argparse.ArgumentParser('python')
+
     parser.add_argument('-epoch',
                         default=30,
                         type=int,
@@ -27,157 +27,124 @@ plt.ion()
                         required=False,
                         help='directory of training images')
 
+    parser.add_argument('-model_file',
+                        default='./log/bionoi_autoencoder_conv.pt',
+                        required=False,
+                        help='file to save the model')
+
     parser.add_argument('-batch_size',
                         default=256,
                         type=int,
                         required=False,
                         help='the batch size, normally 2^n.')
 
-    parser.add_argument('-normalize',
-                        default=True,
-                        required=False,
-                        help='whether to normalize dataset')
-
     return parser.parse_args()
 
 
 if __name__ == "__main__":
     args = getArgs()
+
     num_epochs = args.epoch
     data_dir = args.data_dir
     model_file = args.model_file
     batch_size = args.batch_size
-    normalize = args.normalize
-'''
 
 
-def train_model(model, criterion, optimizer, scheduler, num_epochs):
-    since = time.time()
+data_dir = "/home/jfeinst/Projects/bionoi_files/resnet-test"
+model_name = "resnet34"
+batch_size = 8
+num_epochs = 2
+feature_extract = True
+model_file = 'resnet34test.pt'
 
-    best_model_wts = copy.deepcopy(model.state_dict())
-    best_acc = 0.0
-
-    for epoch in range(num_epochs):
-        print('Epoch {}/{}'.format(epoch, num_epochs - 1))
-        print('-' * 10)
-
-        # Each epoch has a training and validation phase
-        for phase in ['train', 'val']:
-            if phase == 'train':
-                scheduler.step()
-                model.train()  # Set model to training mode
-            else:
-                model.eval()   # Set model to evaluate mode
-
-            running_loss = 0.0
-            running_corrects = 0
-
-            # Iterate over data.
-            for inputs, labels in dataloaders[phase]:
-                inputs = inputs.to(device)
-                labels = labels.to(device)
-
-                # zero the parameter gradients
-                optimizer.zero_grad()
-
-                # forward
-                # track history if only in train
-                with torch.set_grad_enabled(phase == 'train'):
-                    outputs = model(inputs)
-                    _, preds = torch.max(outputs, 1)
-                    loss = criterion(outputs, labels)
-
-                    # backward + optimize only if in training phase
-                    if phase == 'train':
-                        loss.backward()
-                        optimizer.step()
-
-                # statistics
-                running_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum(preds == labels.data)
-
-            epoch_loss = running_loss / dataset_sizes[phase]
-            epoch_acc = running_corrects.double() / dataset_sizes[phase]
-
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
-
-            # deep copy the model
-            if phase == 'val' and epoch_acc > best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
-
-        print()
-
-    time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(
-        time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
-
-    # load best model weights
-    model.load_state_dict(best_model_wts)
-    return model
+# Data augmentation and normalization
+data_transforms = {'train': transforms.Compose([transforms.Resize(256),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
+                   'val': transforms.Compose([transforms.Resize(256),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
 
-def visualize_model(model, num_images=6):
-    was_training = model.training
-    model.eval()
-    images_so_far = 0
-    fig = plt.figure()
-
-    with torch.no_grad():
-        for i, (inputs, labels) in enumerate(dataloaders['val']):
-            inputs = inputs.to(device)
-            labels = labels.to(device)
-
-            outputs = model(inputs)
-            _, preds = torch.max(outputs, 1)
-
-            for j in range(inputs.size()[0]):
-                images_so_far += 1
-                ax = plt.subplot(num_images//2, 2, images_so_far)
-                ax.axis('off')
-                ax.set_title('predicted: {}'.format(class_names[preds[j]]))
-                imshow(inputs.cpu().data[j])
-
-                if images_so_far == num_images:
-                    model.train(mode=was_training)
-                    return
-        model.train(mode=was_training)
-
-normalize = True
-data_dir = '/home/jfeinst/Projects/bionoi_files/resnet-test/'
-epoch = 3
-batch_size = 128
+print("Initializing Datasets and Dataloaders...")
+# Create training and validation datasets
+image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), data_transforms[x]) for x in ['train', 'val']}
+# Create training and validation dataloaders
+dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
+                                                   batch_size=batch_size,
+                                                   shuffle=True,
+                                                   num_workers=4) for x in ['train', 'val']}
 
 
-# Image normalization/ transformations
-if normalize == True:
-    print('normalizing data:')
-    transform = transforms.Compose([transforms.ToTensor(),
-                                    transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-else:
-    transform = transforms.Compose([transforms.ToTensor()])
+class_names = image_datasets['train'].classes
+num_classes = len(class_names)
 
-# Datasets from directories
+print('Size of training dataset: ' + str(image_datasets['train']))
+print('Size of training dataset: ' + str(image_datasets['val']))
+print('Number of classes: ' + str(len(class_names)))
 
-datasets = {x: datasets.ImageFolder(os.path.join(data_dir, x), transform=transform) for x in ['train', 'val']}
-dataloaders = {x: torch.utils.data.DataLoader(datasets[x], batch_size=batch_size,shuffle=True, num_workers=32) for x in ['train', 'val']}
-dataset_sizes = {x: len(datasets[x]) for x in ['train', 'val']}
-class_names = datasets['train'].classes
+
+# Detect if we have a GPU available
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print('Current device: ' + str(device))
 
 
-model_ft = models.resnet18(pretrained=True)
-num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, 2)
+# Initialize the model for this run
+model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
+
+
+# Send the model to GPU
 model_ft = model_ft.to(device)
-criterion = nn.CrossEntropyLoss()
+
+
+if torch.cuda.device_count() > 1:
+    print("Using " + str(torch.cuda.device_count()) + " GPUs...")
+    model_ft = nn.DataParallel(model_ft)
+
+
+# Gather the parameters to be optimized/updated in this run.
+params_to_update = model_ft.parameters()
+print("Params to learn:")
+if feature_extract:
+    params_to_update = []
+    for name,param in model_ft.named_parameters():
+        if param.requires_grad:
+            params_to_update.append(param)
+            print("\t",name)
+else:
+    for name,param in model_ft.named_parameters():
+        if param.requires_grad:
+            print("\t",name)
+
+
+total_params = sum(p.numel() for p in model_ft.parameters())
+total_trainable_params = sum(
+    p.numel() for p in model_ft.parameters() if p.requires_grad)
+print('Total parameters: ' + str(total_params) + 'Training parameters: ' + str(total_trainable_params))
+
 
 # Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(model_ft.parameters(), lr=0.001, momentum=0.9)
+optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
 
-# Decay LR by a factor of 0.1 every 7 epochs
-exp_lr_scheduler = lr_scheduler.StepLR(optimizer_ft, step_size=7, gamma=0.1)
 
-model_ft = train_model(model_ft, criterion, optimizer_ft, exp_lr_scheduler, num_epochs=epoch)
+# Setup the loss fxn
+criterion = nn.CrossEntropyLoss()
+
+
+# Train and evaluate
+trained_model_ft, val_acc_history, val_loss_history, \
+train_acc_history, train_loss_history = train_model(model_ft,
+                                                    dataloaders_dict,
+                                                    criterion,
+                                                    optimizer_ft,
+                                                    num_epochs=num_epochs)
+
+# Plot accuracy and loss
+list_plot(train_acc_history, 'Training_Accuracy')
+list_plot(train_loss_history, 'Training_Loss')
+list_plot(val_acc_history, 'Validation_Accuracy')
+list_plot(val_loss_history, 'Validation_loss')
+
+
+# save the model
+torch.save(trained_model_ft.state_dict(), model_file)

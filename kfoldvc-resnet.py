@@ -11,7 +11,7 @@ import time
 import os
 import copy
 import argparse
-from utils import train_model, list_plot, initialize_model
+from utils import train_model, list_plot_multi, initialize_model
 
 
 def getArgs():
@@ -27,11 +27,6 @@ def getArgs():
                         default='../bae-data-images/',
                         required=False,
                         help='directory of training images')
-
-    parser.add_argument('-model_file',
-                        default='./log/bionoi_autoencoder_conv.pt',
-                        required=False,
-                        help='file to save the model')
 
     parser.add_argument('-batch_size',
                         default=256,
@@ -53,7 +48,6 @@ if __name__ == "__main__":
 
     num_epochs = args.epoch
     data_dir = args.data_dir
-    model_file = args.model_file
     batch_size = args.batch_size
     fold = args.fold
 
@@ -62,10 +56,9 @@ model_name = "resnet34"
 batch_size = 8
 num_epochs = 2
 feature_extract = True
-model_file = 'resnet34test'
 
 
-
+# Data transformations - normalize values are resnet standard
 data_transforms = {'train': transforms.Compose([transforms.Resize(256),
                                                 transforms.ToTensor(),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
@@ -81,6 +74,7 @@ final_train_acc_history = []
 final_train_loss_history = []
 
 
+# Determine whether to use GPU or CPU
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Current device: ' + str(device) + '\n')
 if torch.cuda.device_count() > 1:
@@ -89,23 +83,29 @@ if torch.cuda.device_count() > 1:
 
 for i in range(fold):
     print('Fold {}'.format(i+1))
-    
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, fold_lst[i], x), data_transforms[x]) for x in ['train', 'val']}
-    dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x], batch_size=batch_size, shuffle=True, num_workers=4) for x in ['train', 'val']}
+
+    # Forming the dataset and dataloader
+    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, fold_lst[i], x),
+                                              data_transforms[x]) for x in ['train', 'val']}
+    dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
+                                                       batch_size=batch_size,
+                                                       shuffle=True,
+                                                       num_workers=4) for x in ['train', 'val']}
 
     class_names = image_datasets['train'].classes
     num_classes = len(class_names)
 
     print('Size of training dataset: ' + str(image_datasets['train']))
     print('Size of training dataset: ' + str(image_datasets['val']))
-    print('Number of classes: ' + str(len(class_names)))
+    print('Number of classes: ' + str(num_classes))
 
-    # Initialize the model for this run
+    # Initialize the model
     model_ft, input_size = initialize_model(model_name, num_classes, feature_extract, use_pretrained=True)
 
     # Send the model to GPU
     model_ft = model_ft.to(device)
 
+    # Use multiple GPUs if available
     if torch.cuda.device_count() > 1:
         model_ft = nn.DataParallel(model_ft)
 
@@ -123,6 +123,7 @@ for i in range(fold):
             if param.requires_grad:
                 print("\t", name)
 
+    # Print the number of parameters being trained
     total_params = sum(p.numel() for p in model_ft.parameters())
     total_trainable_params = sum(
         p.numel() for p in model_ft.parameters() if p.requires_grad)
@@ -135,16 +136,24 @@ for i in range(fold):
     criterion = nn.CrossEntropyLoss()
 
     # Train and evaluate
-    trained_model_ft, val_acc_history, val_loss_history, train_acc_history, train_loss_history = train_model(model_ft, dataloaders_dict, criterion, optimizer_ft, num_epochs=num_epochs)
+    trained_model_ft, val_acc_history, val_loss_history, \
+    train_acc_history, train_loss_history = train_model(model_ft,
+                                                        dataloaders_dict,
+                                                        criterion,
+                                                        optimizer_ft,
+                                                        num_epochs=num_epochs)
 
-    torch.save(trained_model_ft.state_dict(), model_file + fold_lst[i] + '.pt')
+    # Save the model
+    torch.save(trained_model_ft.state_dict(), model_name + fold_lst[i] + '.pt')
 
+    # Save the accuracy and loss history
     final_val_acc_history.append(val_acc_history)
     final_val_loss_history.append(val_loss_history)
     final_train_acc_history.append(train_acc_history)
     final_train_loss_history.append(train_loss_history)
 
-list_plot(final_train_acc_history, 'Training_Accuracy')
-list_plot(final_train_loss_history, 'Training_Loss')
-list_plot(final_val_acc_history, 'Validation_Accuracy')
-list_plot(final_val_loss_history, 'Validation_loss')
+# Plot the accuracy and loss
+list_plot_multi(final_train_acc_history, 'Training_Accuracy')
+list_plot_multi(final_train_loss_history, 'Training_Loss')
+list_plot_multi(final_val_acc_history, 'Validation_Accuracy')
+list_plot_multi(final_val_loss_history, 'Validation_loss')

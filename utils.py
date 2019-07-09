@@ -62,9 +62,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
-            print('Epoch {}/{}'.format(epoch, num_epochs - 1) + '{} Loss: {:.4f}'.format(phase,
-                                                                                         epoch_loss) + '{} Acc: {:.4f}'.format(
-                phase, epoch_acc))
+            print('Epoch {}/{}'.format(epoch, num_epochs - 1) + '{} Loss: {:.4f}'.format(phase, epoch_loss) + '{} Acc: {:.4f}'.format(phase, epoch_acc))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -78,8 +76,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 train_loss_history.append(epoch_loss)
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60,
-                                                        time_elapsed % 60) + 'Best val Acc: {:4f}'.format(best_acc))
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60) + 'Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
@@ -132,10 +129,20 @@ def visualize_model(model, num_images=6):
         model.train(mode=was_training)
 
 
-def list_plot(lst, title):
+def list_plot_multi(lst, title):
     fig = plt.figure()
     for i in range(len(lst)):
         plt.plot(lst[i])
+    plt.xlabel('epoch')
+    plt.ylabel(title)
+    plt.title(title)
+    plt.legend()
+    plt.draw()
+    fig.savefig('./log/' + title + '.png', dpi=fig.dpi)
+
+def list_plot(lst, title):
+    fig = plt.figure()
+    plt.plot(lst)
     plt.xlabel('epoch')
     plt.ylabel(title)
     plt.title(title)
