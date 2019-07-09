@@ -21,4 +21,6 @@
     conda install pytorch torchvision cudatoolkit=9.0 -c pytorch
     export LD_LIBRARY_PATH=/usr/local/onnx/onnx:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib64:/.singularity.d/libs
     cd PATH_CONTAINING_PYTHON_FILE
+
     python kfoldvc-resnet.py -data_dir PATH_TO_DATA_DIR -batch_size 512
+    python resnet-no-validation.py -data_dir PATH_TO_DATA_DIR -batch_size 512 -model_file ./log/resnet34noval.pt
