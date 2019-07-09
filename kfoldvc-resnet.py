@@ -100,7 +100,8 @@ for i in range(fold):
     class_names = image_datasets['train'].classes
     num_classes = len(class_names)
 
-    print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' + str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
+    print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' +
+          str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
     # Initialize the model
     model_ft, input_size = initialize_model(num_classes, feature_extract, use_pretrained=True)

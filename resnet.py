@@ -81,7 +81,8 @@ dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
 class_names = image_datasets['train'].classes
 num_classes = len(class_names)
 
-print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' + str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
+print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' +
+      str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
 
 # Detect if we have a GPU available
