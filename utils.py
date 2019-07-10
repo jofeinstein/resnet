@@ -24,6 +24,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
 
+    print('Beginning training...')
+
     for epoch in range(num_epochs):
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
@@ -94,6 +96,8 @@ def train_model_no_validation(model, dataloaders, criterion, optimizer, num_epoc
 
     best_model_wts = copy.deepcopy(model.state_dict())
     best_acc = 0.0
+
+    print('Beginning training...')
 
     for epoch in range(num_epochs):
         # Each epoch has only a training phase

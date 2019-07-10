@@ -57,10 +57,10 @@ if __name__ == "__main__":
     fold = args.fold
     feature_extract = args.feature_extract
 
-data_dir = "/Users/jofeinstein/Documents/bionoi-project/bionoi-test/voronoi_diagrams/resnet-test/"
+data_dir = "/home/jfeinst/Desktop/resnet-data"
 model_name = "resnet34"
 batch_size = 32
-num_epochs = 5
+num_epochs = 3
 
 
 # Data transformations - normalize values are resnet standard
@@ -72,7 +72,7 @@ data_transforms = {'train': transforms.Compose([transforms.Resize(256),
                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
 
-fold_lst = ('fold0', 'fold1', 'fold2', 'fold3', 'fold4')
+fold_lst = ['fold0', 'fold1', 'fold2', 'fold3', 'fold4']
 final_val_acc_history = []
 final_val_loss_history = []
 final_train_acc_history = []
@@ -100,7 +100,7 @@ for i in range(fold):
     class_names = image_datasets['train'].classes
     num_classes = len(class_names)
 
-    print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of training dataset: ' +
+    print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of validation dataset: ' +
           str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
     # Initialize the model
