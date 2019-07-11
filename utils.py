@@ -66,7 +66,7 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
             epoch_loss = running_loss / len(dataloaders[phase].dataset)
             epoch_acc = running_corrects.double() / len(dataloaders[phase].dataset)
 
-            print('Epoch {}/{}'.format(epoch, num_epochs - 1) + '    {} - Loss: {:.4f}'.format(phase, epoch_loss) + '  Acc: {:.4f}'.format(epoch_acc))
+            print('Epoch {}/{}'.format(epoch + 1, num_epochs) + '    {} - Loss: {:.4f}'.format(phase, epoch_loss) + '  Acc: {:.4f}'.format(epoch_acc))
 
             # deep copy the model
             if phase == 'val' and epoch_acc > best_acc:
@@ -80,7 +80,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 train_loss_history.append(epoch_loss)
 
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60) + '      Best val Acc: {:4f}'.format(best_acc) + '\n')
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60) + '      Best val Acc: {:4f}'.format(best_acc))
+    print('-' * 15 + '\n')
 
     # load best model weights
     model.load_state_dict(best_model_wts)

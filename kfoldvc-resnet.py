@@ -12,6 +12,8 @@ import os
 import copy
 import argparse
 from utils import train_model, list_plot_multi, initialize_model
+import tarfile
+import shutil
 
 
 def getArgs():
@@ -24,7 +26,7 @@ def getArgs():
                         help='number of epochs to train')
 
     parser.add_argument('-data_dir',
-                        default='../bae-data-images/',
+                        default='/var/scratch/jfeins1',
                         required=False,
                         help='directory of training images')
 
@@ -45,6 +47,16 @@ def getArgs():
                         type=bool,
                         required=False)
 
+    parser.add_argument('-tar_dir',
+                        default='/work/jfeins1/resnet-data.tar.gz',
+                        required=False,
+                        help='directory of tarfile')
+
+    parser.add_argument('-tar_extract_path',
+                        default='/var/scratch/jfeins1/',
+                        required=False,
+                        help='directory to extract tarfile to')
+
     return parser.parse_args()
 
 
@@ -56,12 +68,11 @@ if __name__ == "__main__":
     batch_size = args.batch_size
     fold = args.fold
     feature_extract = args.feature_extract
+    tar_dir = args.tar_dir
+    tar_extract_path = args.tar_extract_path
 
-data_dir = "/home/jfeinst/Desktop/resnet-data"
-model_name = "resnet34"
-batch_size = 32
-num_epochs = 3
 
+tar_name = tar_dir.split('/')[-1].split('.')[0]
 
 # Data transformations - normalize values are resnet standard
 data_transforms = {'train': transforms.Compose([transforms.Resize(256),
@@ -87,10 +98,18 @@ if torch.cuda.device_count() > 1:
 
 
 for i in range(fold):
-    print('Fold {}'.format(i+1))
+    print('--Fold {}--'.format(i+1))
+
+    print('Extracting tarball...')
+
+    # Untar tarball containing data
+    with tarfile.open(tar_dir) as tar:
+        subdir_and_files = [tarinfo for tarinfo in tar.getmembers() if
+                            tarinfo.name.startswith(tar_name + '/' + fold_lst[i])]
+        tar.extractall(members=subdir_and_files, path=tar_extract_path)
 
     # Forming the dataset and dataloader
-    image_datasets = {x: datasets.ImageFolder(os.path.join(data_dir, fold_lst[i], x),
+    image_datasets = {x: datasets.ImageFolder(os.path.join(tar_extract_path, tar_name, fold_lst[i], x),
                                               data_transforms[x]) for x in ['train', 'val']}
     dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
                                                        batch_size=batch_size,
@@ -142,7 +161,7 @@ for i in range(fold):
                                                         num_epochs=num_epochs)
 
     # Save the model
-    torch.save(trained_model_ft.state_dict(), './log/' + model_name + fold_lst[i] + '.pt')
+    torch.save(trained_model_ft.state_dict(), './log/resnet34' + fold_lst[i] + '.pt')
 
     # Save the accuracy and loss history
     final_val_acc_history.append(val_acc_history)
@@ -150,7 +169,11 @@ for i in range(fold):
     final_train_acc_history.append(train_acc_history)
     final_train_loss_history.append(train_loss_history)
 
+    # Delete directory to make room for next fold
+    shutil.rmtree(tar_extract_path + tar_name)
+
 # Plot the accuracy and loss
+print('Plotting data...')
 list_plot_multi(final_train_acc_history, 'Training_Accuracy')
 list_plot_multi(final_train_loss_history, 'Training_Loss')
 list_plot_multi(final_val_acc_history, 'Validation_Accuracy')
