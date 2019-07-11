@@ -13,6 +13,7 @@
 2. ssh into the given node
 3. use the following commands
 
+    mkdir -p /var/scratch/jfeins1
     singularity shell -B /project,/work,/var --nv /home/admin/singularity/pytorch-1.0.0-dockerhub-v3.simg
     unset PYTHONPATH
     unset PYTHONHOME
@@ -22,5 +23,5 @@
     export LD_LIBRARY_PATH=/usr/local/onnx/onnx:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib64:/.singularity.d/libs
     cd PATH_CONTAINING_PYTHON_FILE
 
-    python kfoldvc-resnet.py -data_dir PATH_TO_DATA_DIR -batch_size 512
+    stdbuf -o0 python kfoldvc-resnet.py -batch_size 512 > progress-kfold-resnet.log 2>&1
     python resnet-no-validation.py -data_dir PATH_TO_DATA_DIR -batch_size 512 -model_file ./log/resnet34noval.pt
