@@ -58,7 +58,7 @@ def getArgs():
                         help='directory to extract tarfile to')
 
     parser.add_argument('-fold_num',
-                        default=1,
+                        default=0,
                         type=int,
                         required=False,
                         help='the fold index')
@@ -105,7 +105,7 @@ if torch.cuda.device_count() > 1:
 
 
 
-print('--Fold {}--'.format(fold_num))
+print('--Fold {}--'.format(fold_num + 1))
 
 print('Extracting tarball...')
 
