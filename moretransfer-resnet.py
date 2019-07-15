@@ -11,20 +11,9 @@ import time
 import os
 import copy
 import argparse
-from utils import train_model, list_plot_multi, initialize_model
+from utils import train_model, list_plot_multi, initialize_model, set_parameter_requires_grad
 import tarfile
 import shutil
-import torch
-import torch.nn as nn
-import torch.optim as optim
-from torch.optim import lr_scheduler
-import numpy as np
-import torchvision
-from torchvision import datasets, models, transforms
-import matplotlib.pyplot as plt
-import time
-import os
-import copy
 
 
 def getArgs():
@@ -69,7 +58,7 @@ def getArgs():
                         help='directory to extract tarfile to')
 
     parser.add_argument('-fold_num',
-                        default=1,
+                        default=0,
                         type=int,
                         required=False,
                         help='the fold index')
@@ -89,90 +78,125 @@ if __name__ == "__main__":
     tar_extract_path = args.tar_extract_path
     fold_num = args.fold_num
 
-def set_parameter_requires_grad(model, feature_extracting):
-    if feature_extracting:
-        for param in model.parameters():
-            param.requires_grad = False
 
-class BasicBlock(nn.Module):
-    expansion = 1
+tar_name = tar_dir.split('/')[-1].split('.')[0]
 
-    def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                 base_width=64, dilation=1, norm_layer=None):
-        super(BasicBlock, self).__init__()
-        if norm_layer is None:
-            norm_layer = nn.BatchNorm2d
-        if groups != 1 or base_width != 64:
-            raise ValueError('BasicBlock only supports groups=1 and base_width=64')
-        if dilation > 1:
-            raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
-        # Both self.conv1 and self.downsample layers downsample the input when stride != 1
-        self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = norm_layer(planes)
-        self.relu = nn.ReLU(inplace=True)
-        self.conv2 = conv3x3(planes, planes)
-        self.bn2 = norm_layer(planes)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        identity = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            identity = self.downsample(x)
-
-        out += identity
-        out = self.relu(out)
-
-        return out
-
-def conv1x1(in_planes, out_planes, stride=1):
-    """1x1 convolution"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
-
-def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-    """3x3 convolution with padding"""
-    return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-                     padding=dilation, groups=groups, bias=False, dilation=dilation)
-
-def _make_layer(self, block, planes, blocks, stride=1, dilate=False):
-    norm_layer = self._norm_layer
-    downsample = None
-    previous_dilation = self.dilation
-    if dilate:
-        self.dilation *= stride
-        stride = 1
-    if stride != 1 or self.inplanes != planes * block.expansion:
-        downsample = nn.Sequential(
-            conv1x1(self.inplanes, planes * block.expansion, stride),
-            norm_layer(planes * block.expansion),
-        )
-
-    layers = []
-    layers.append(block(self.inplanes, planes, stride, downsample, self.groups,
-                        self.base_width, previous_dilation, norm_layer))
-    self.inplanes = planes * block.expansion
-    for _ in range(1, blocks):
-        layers.append(block(self.inplanes, planes, groups=self.groups,
-                            base_width=self.base_width, dilation=self.dilation,
-                            norm_layer=norm_layer))
-
-    return nn.Sequential(*layers)
+# Data transformations - normalize values are resnet standard
+data_transforms = {'train': transforms.Compose([transforms.Resize(256),
+                                                transforms.ToTensor(),
+                                                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
+                   'val': transforms.Compose([transforms.Resize(256),
+                                              transforms.ToTensor(),
+                                              transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
 
-model_ft = None
+fold_lst = ['fold0', 'fold1', 'fold2', 'fold3', 'fold4']
+final_val_acc_history = []
+final_val_loss_history = []
+final_train_acc_history = []
+final_train_loss_history = []
+
+
+# Determine whether to use GPU or CPU
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+print('Current device: ' + str(device) + '\n')
+if torch.cuda.device_count() > 1:
+    print("Using " + str(torch.cuda.device_count()) + " GPUs...")
+
+
+
+print('--Fold {}--'.format(fold_num + 1))
+
+print('Extracting tarball...')
+
+# Untar tarball containing data
+with tarfile.open(tar_dir) as tar:
+    subdir_and_files = [tarinfo for tarinfo in tar.getmembers() if
+                        tarinfo.name.startswith(tar_name + '/' + fold_lst[fold_num])]
+    tar.extractall(members=subdir_and_files, path=tar_extract_path)
+
+# Forming the dataset and dataloader
+image_datasets = {x: datasets.ImageFolder(os.path.join(tar_extract_path, tar_name, fold_lst[fold_num], x),
+                                          data_transforms[x]) for x in ['train', 'val']}
+dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
+                                                   batch_size=batch_size,
+                                                   shuffle=True,
+                                                   num_workers=4) for x in ['train', 'val']}
+
+class_names = image_datasets['train'].classes
+num_classes = len(class_names)
+
+print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of validation dataset: ' +
+      str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
+
+# Initialize the model
 model_ft = models.resnet34(pretrained=True)
 set_parameter_requires_grad(model_ft, True)
 num_ftrs = model_ft.fc.in_features
 model_ft.fc = nn.Linear(num_ftrs, 497)
-model_ft.layer4 = _make_layer(block=BasicBlock, planes=512, blocks=3, stride=2, dilate=False)
-input_size = 256
+model_ft.layer4 = nn.Sequential(*list(model_ft.children())[7])
 
-print(model_ft)
+# Send the model to GPU
+model_ft = model_ft.to(device)
+
+# Use multiple GPUs if available
+if torch.cuda.device_count() > 1:
+    model_ft = nn.DataParallel(model_ft)
+
+# Gather the parameters to be optimized/updated in this run.
+params_to_update = model_ft.parameters()
+if feature_extract:
+    params_to_update = []
+    for name, param in model_ft.named_parameters():
+        if param.requires_grad:
+            params_to_update.append(param)
+
+# Print the number of parameters being trained
+total_params = sum(p.numel() for p in model_ft.parameters())
+total_trainable_params = sum(
+    p.numel() for p in model_ft.parameters() if p.requires_grad)
+print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
+
+# Observe that all parameters are being optimized
+optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+
+# Setup the loss fxn
+criterion = nn.CrossEntropyLoss()
+
+# Train and evaluate
+trained_model_ft, val_acc_history, val_loss_history, \
+train_acc_history, train_loss_history = train_model(model_ft,
+                                                    dataloaders_dict,
+                                                    criterion,
+                                                    optimizer_ft,
+                                                    num_epochs=num_epochs)
+
+# Save the model
+torch.save(trained_model_ft.state_dict(), './log/resnet34deeper' + fold_lst[fold_num] + '.pt')
+
+print('Validation accuracy: ' + val_acc_history)
+print('Validation loss: ' + val_loss_history)
+print('Training accuracy: ' + train_acc_history)
+print('Training loss: ' + train_loss_history)
+
+'''
+# Save the accuracy and loss history
+print('Saving history...')
+final_val_acc_history.append(val_acc_history)
+final_val_loss_history.append(val_loss_history)
+final_train_acc_history.append(train_acc_history)
+final_train_loss_history.append(train_loss_history)
+'''
+
+# Delete directory to make room for next fold
+shutil.rmtree(tar_extract_path + tar_name)
+
+
+'''
+# Plot the accuracy and loss
+print('Plotting data...')
+list_plot_multi(final_train_acc_history, 'Training_Accuracy')
+list_plot_multi(final_train_loss_history, 'Training_Loss')
+list_plot_multi(final_val_acc_history, 'Validation_Accuracy')
+list_plot_multi(final_val_loss_history, 'Validation_loss')
+'''
