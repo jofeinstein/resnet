@@ -11,7 +11,7 @@ import time
 import os
 import copy
 import argparse
-from utils import train_model, list_plot_multi, initialize_model, set_parameter_requires_grad
+from utils import train_model, list_plot_multi, initialize_model, set_parameter_requires_grad, list_plot
 import tarfile
 import shutil
 
@@ -48,12 +48,12 @@ def getArgs():
                         required=False)
 
     parser.add_argument('-tar_dir',
-                        default='/work/jfeins1/resnet-data.tar.gz',
+                        default='/work/jfeins1/resnet-binary.tar.gz',
                         required=False,
                         help='directory of tarfile')
 
     parser.add_argument('-tar_extract_path',
-                        default='/var/scratch/jfeins1/',
+                        default='/var/scratch/jfeins1/moretransfer/',
                         required=False,
                         help='directory to extract tarfile to')
 
@@ -62,6 +62,12 @@ def getArgs():
                         type=int,
                         required=False,
                         help='the fold index')
+
+    parser.add_argument('-learning_rate',
+                        default=0.001,
+                        type=float,
+                        required=False,
+                        help='learning rate')
 
     return parser.parse_args()
 
@@ -77,16 +83,17 @@ if __name__ == "__main__":
     tar_dir = args.tar_dir
     tar_extract_path = args.tar_extract_path
     fold_num = args.fold_num
+    lr = args.learning_rate
 
-
+#tar_dir = '/home/jfeinst/Desktop/voronoi_diagrams/test.tar.gz'
+#tar_extract_path = '/home/jfeinst/Desktop/'
 tar_name = tar_dir.split('/')[-1].split('.')[0]
+# num_epochs = 2
 
 # Data transformations - normalize values are resnet standard
-data_transforms = {'train': transforms.Compose([transforms.Resize(256),
-                                                transforms.ToTensor(),
+data_transforms = {'train': transforms.Compose([transforms.ToTensor(),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
-                   'val': transforms.Compose([transforms.Resize(256),
-                                              transforms.ToTensor(),
+                   'val': transforms.Compose([transforms.ToTensor(),
                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
 
@@ -102,8 +109,6 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 print('Current device: ' + str(device) + '\n')
 if torch.cuda.device_count() > 1:
     print("Using " + str(torch.cuda.device_count()) + " GPUs...")
-
-
 
 print('--Fold {}--'.format(fold_num + 1))
 
@@ -133,8 +138,10 @@ print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    
 model_ft = models.resnet34(pretrained=True)
 set_parameter_requires_grad(model_ft, True)
 num_ftrs = model_ft.fc.in_features
-model_ft.fc = nn.Linear(num_ftrs, 497)
+model_ft.layer3 = nn.Sequential(*list(model_ft.children())[6])
 model_ft.layer4 = nn.Sequential(*list(model_ft.children())[7])
+model_ft.avgpool = nn.AdaptiveAvgPool2d((1,1))
+model_ft.fc = nn.Linear(num_ftrs, num_classes)
 
 # Send the model to GPU
 model_ft = model_ft.to(device)
@@ -158,7 +165,13 @@ total_trainable_params = sum(
 print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
 
 # Observe that all parameters are being optimized
-optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+# optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+optimizer_ft = optim.Adam(model_ft.parameters(),
+                          lr=lr,
+                          betas=(0.9, 0.999),
+                          eps=1e-8,
+                          weight_decay=0.0001,
+                          amsgrad=False)
 
 # Setup the loss fxn
 criterion = nn.CrossEntropyLoss()
@@ -174,10 +187,16 @@ train_acc_history, train_loss_history = train_model(model_ft,
 # Save the model
 torch.save(trained_model_ft.state_dict(), './log/resnet34deeper' + fold_lst[fold_num] + '.pt')
 
-print('Validation accuracy: ' + val_acc_history)
-print('Validation loss: ' + val_loss_history)
-print('Training accuracy: ' + train_acc_history)
-print('Training loss: ' + train_loss_history)
+print('Validation accuracy: ' + str(val_acc_history))
+print('Validation loss: ' + str(val_loss_history))
+print('Training accuracy: ' + str(train_acc_history))
+print('Training loss: ' + str(train_loss_history))
+
+print('Plotting data...')
+list_plot(train_acc_history, 'Training_Accuracy')
+list_plot(train_loss_history, 'Training_Loss')
+list_plot(val_acc_history, 'Validation_Accuracy')
+list_plot(val_loss_history, 'Validation_loss')
 
 '''
 # Save the accuracy and loss history

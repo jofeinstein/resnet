@@ -13,7 +13,7 @@ import copy
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
+def train_model(model, dataloaders, criterion, optimizer, num_epochs=25, num_classes=2):
     since = time.time()
 
     val_acc_history = []
@@ -27,6 +27,8 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
     print('Beginning training...')
 
     for epoch in range(num_epochs):
+        time_taken = time.time()
+
         # Each epoch has a training and validation phase
         for phase in ['train', 'val']:
             if phase == 'train':
@@ -73,14 +75,31 @@ def train_model(model, dataloaders, criterion, optimizer, num_epochs=25):
                 best_acc = epoch_acc
                 best_model_wts = copy.deepcopy(model.state_dict())
             if phase == 'val':
-                val_acc_history.append(epoch_acc)
+                val_acc_history.append(float(epoch_acc))
                 val_loss_history.append(epoch_loss)
             if phase == 'train':
-                train_acc_history.append(epoch_acc)
+                train_acc_history.append(float(epoch_acc))
                 train_loss_history.append(epoch_loss)
 
+            if phase == 'val':
+                confusion_matrix = torch.zeros(num_classes, num_classes)
+                with torch.no_grad():
+                    for i, (inputs, classes) in enumerate(dataloaders['val']):
+                        inputs = inputs.to(device)
+                        classes = classes.to(device)
+                        outputs = model(inputs)
+                        _, preds = torch.max(outputs, 1)
+                        for t, p in zip(classes.view(-1), preds.view(-1)):
+                            confusion_matrix[t.long(), p.long()] += 1
+                print('Confusion matrix:')
+                print(confusion_matrix)
+
+        time_used = time.time() - time_taken
+        print('Time elapsed: {:.0f}m {:.0f}s'.format(time_used // 60, time_used % 60))
+
     time_elapsed = time.time() - since
-    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60) + '      Best val Acc: {:4f}'.format(best_acc))
+    print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60)
+          + '      Best val Acc: {:4f}'.format(best_acc))
     print('-' * 15 + '\n')
 
     # load best model weights
@@ -211,6 +230,7 @@ def list_plot_multi(lst, title):
     # plt.legend()
     plt.draw()
     fig.savefig('./log/' + title + '.png', dpi=500)
+
 
 def list_plot(lst, title):
     fig = plt.figure()

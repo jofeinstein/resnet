@@ -78,7 +78,7 @@ if __name__ == "__main__":
     tar_extract_path = args.tar_extract_path
     fold_num = args.fold_num
 
-
+tar_extract_path = '/home/jfeinst/Desktop/voronoi_diagrams/test.tar.gz'
 tar_name = tar_dir.split('/')[-1].split('.')[0]
 
 # Data transformations - normalize values are resnet standard
@@ -131,6 +131,7 @@ print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    
 
 # Initialize the model
 model_ft, input_size = initialize_model(num_classes, feature_extract, use_pretrained=True)
+print(model_ft)
 
 # Send the model to GPU
 model_ft = model_ft.to(device)
@@ -165,7 +166,8 @@ train_acc_history, train_loss_history = train_model(model_ft,
                                                     dataloaders_dict,
                                                     criterion,
                                                     optimizer_ft,
-                                                    num_epochs=num_epochs)
+                                                    num_epochs=num_epochs,
+                                                    num_classes=num_classes)
 
 # Save the model
 torch.save(trained_model_ft.state_dict(), './log/resnet34' + fold_lst[fold_num] + '.pt')

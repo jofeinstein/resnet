@@ -75,11 +75,9 @@ if __name__ == "__main__":
 tar_name = tar_dir.split('/')[-1].split('.')[0]
 
 # Data transformations - normalize values are resnet standard
-data_transforms = {'train': transforms.Compose([transforms.Resize(256),
-                                                transforms.ToTensor(),
+data_transforms = {'train': transforms.Compose([transforms.ToTensor(),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
-                   'val': transforms.Compose([transforms.Resize(256),
-                                              transforms.ToTensor(),
+                   'val': transforms.Compose([transforms.ToTensor(),
                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
 
@@ -147,7 +145,13 @@ for i in range(fold):
     print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
 
     # Observe that all parameters are being optimized
-    optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+    # optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
+    optimizer_ft = optim.Adam(params_to_update,
+                              lr=0.001,
+                              betas=(0.9, 0.999),
+                              eps=1e-10,
+                              weight_decay=0.0001,
+                              amsgrad=False)
 
     # Setup the loss fxn
     criterion = nn.CrossEntropyLoss()
@@ -168,6 +172,11 @@ for i in range(fold):
     final_val_loss_history.append(val_loss_history)
     final_train_acc_history.append(train_acc_history)
     final_train_loss_history.append(train_loss_history)
+
+    print('Validation accuracy: ' + str(val_acc_history))
+    print('Validation loss: ' + str(val_loss_history))
+    print('Training accuracy: ' + str(train_acc_history))
+    print('Training loss: ' + str(train_loss_history))
 
     # Delete directory to make room for next fold
     shutil.rmtree(tar_extract_path + tar_name)
