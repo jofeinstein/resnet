@@ -184,7 +184,7 @@ optimizer_ft = optim.Adam(model_ft.parameters(),
                           amsgrad=False)
 
 # Learning rate scheduler
-scheduler = torch.optim.lr_scheduler.StepLR(step_size=1, optimizer=optimizer_ft, gamma=0.95)
+scheduler = torch.optim.lr_scheduler.StepLR(step_size=1, optimizer=optimizer_ft, gamma=0.98)
 
 # Setup the loss fxn, using the weighted loss
 weights = torch.tensor([1.0, 5.0]).to(device)
