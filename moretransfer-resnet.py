@@ -198,7 +198,6 @@ train_acc_history, train_loss_history = train_model(model_ft,
                                                     criterion_weighted,
                                                     optimizer_ft,
                                                     num_epochs=num_epochs,
-                                                    learning_rate_scheduler=scheduler,
                                                     num_classes=num_classes)
 
 # Save the model

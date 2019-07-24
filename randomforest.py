@@ -94,7 +94,7 @@ for i in range(fold):
     print(Y_test.size)
 
     print('Creating classifier...')
-    clf = RandomForestClassifier(n_estimators=100, class_weight={1.0:5.0, 3.0:1.0})
+    clf = RandomForestClassifier(n_estimators=100)
     mlp = neural_network.MLPClassifier()
 
     print('Fitting forest...')
