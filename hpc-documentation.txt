@@ -27,5 +27,6 @@ torch.cuda.is_available()
 stdbuf -o0 python kfoldvc-resnet.py -batch_size 512 -fold_num 0 > progress-fold0.log 2>&1
 python resnet-no-validation.py -data_dir PATH_TO_DATA_DIR -batch_size 512 -model_file ./log/resnet34noval.pt
 
-stdbuf -o0 python moretransfer-resnet.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.002 > progress-overfit-higherlr.log 2>&1
+stdbuf -o0 python moretransfer-resnet.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.001 > progress-nofreeze.log 2>&1
 stdbuf -o0 python inception.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.002 > progress-inception.log 2>&1
+stdbuf -o0 python resnet18.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.001 > progress-resnet18.log 2>&1

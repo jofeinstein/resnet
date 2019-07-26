@@ -85,10 +85,10 @@ if __name__ == "__main__":
     fold_num = args.fold_num
     lr = args.learning_rate
 
-#tar_dir = '/home/jfeinst/Desktop/voronoi_diagrams/test.tar.gz'
-#tar_extract_path = '/home/jfeinst/Desktop/'
+tar_dir = '/home/jfeinst/Desktop/voronoi_diagrams/test.tar.gz'
+tar_extract_path = '/home/jfeinst/Desktop/'
 tar_name = tar_dir.split('/')[-1].split('.')[0]
-# num_epochs = 2
+num_epochs = 2
 
 # Data transformations - normalize values and resize are resnet standard
 data_transforms = {'train': transforms.Compose([transforms.Resize(224),
@@ -133,15 +133,11 @@ sampler_dict = {x: torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTe
                                                                   len(torch.DoubleTensor(weights_dict[x]))) for x in ['train', 'val']}
 
 
-'''dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
+dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
                                                    batch_size=batch_size,
                                                    shuffle=False,
                                                    sampler=sampler_dict[x],
-                                                   num_workers=8) for x in ['train', 'val']}'''
-dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
-                                                   batch_size=batch_size,
-                                                   shuffle=True,
-                                                   num_workers=8) for x in ['train', 'val']}
+                                                   num_workers=4) for x in ['train', 'val']}
 
 class_names = image_datasets['train'].classes
 num_classes = len(class_names)
@@ -150,7 +146,7 @@ print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    
       str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
 # Initialize the model
-model_ft = models.resnet34(pretrained=True)
+model_ft = models.resnet18(pretrained=True)
 # set_parameter_requires_grad(model_ft, True)
 num_ftrs = model_ft.fc.in_features
 # model_ft.layer3 = nn.Sequential(*list(model_ft.children())[6])
@@ -158,17 +154,16 @@ num_ftrs = model_ft.fc.in_features
 # model_ft.avgpool = nn.AdaptiveAvgPool2d((1,1))
 model_ft.fc = nn.Linear(num_ftrs, num_classes)
 
-'''
 # Freeze layers below child 7
 child_counter = 0
 for child in model_ft.children():
-    if child_counter < 6:
+    if child_counter < 7:
         print("child ",child_counter," was frozen")
         for param in child.parameters():
             param.requires_grad = False
     else:
         print("child ",child_counter," was not frozen")
-    child_counter += 1'''
+    child_counter += 1
 
 # Send the model to GPU
 model_ft = model_ft.to(device)

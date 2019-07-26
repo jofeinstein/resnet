@@ -43,6 +43,8 @@ for i in range(fold):
         if count == 1:
             train1data = pickle.load(open(dillpickle, 'rb'))
             train1classes = np.array([class_list[0]])
+        elif count == 930:
+            break
         else:
             feature_vec = pickle.load(open(dillpickle, 'rb'))
             train1data = np.vstack((train1data,feature_vec))
@@ -71,8 +73,6 @@ for i in range(fold):
 
     X_train = pd.DataFrame(traindata)
     Y_train = pd.DataFrame(trainclasses)
-    print(X_train)
-    print(Y_train)
 
     count = 0
     for x in range(len(class_list)):
@@ -89,9 +89,9 @@ for i in range(fold):
 
 
     X_test = pd.DataFrame(valdata)
+    print(valdata.size)
     Y_test = pd.DataFrame(valclasses)
-    print(X_test.size)
-    print(Y_test.size)
+    print(valclasses.size)
 
     print('Creating classifier...')
     clf = RandomForestClassifier(n_estimators=100)
@@ -143,6 +143,7 @@ def autolabel(rects):
 autolabel(rects1)
 autolabel(rects2)
 
+plt.ylim([0,1])
 fig.tight_layout()
 # plt.savefig('randomforest-acc-mathewscc.png', dpi=2000, bbox_inches="tight")
 plt.show()
