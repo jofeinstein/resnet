@@ -195,10 +195,12 @@ for child in model_ft.children():
     elif child_counter == 7:
         children_of_child_counter = 0
         for children_of_child in child.children():
-            if children_of_child_counter < 1:
+            if children_of_child_counter < 0:
                 for param in children_of_child.parameters():
                     param.requires_grad = False
                 print('child ', children_of_child_counter, 'of child', child_counter, ' was frozen')
+            else:
+                print('child ', children_of_child_counter, 'of child', child_counter, ' was not frozer')
     else:
         print("child ",child_counter," was not frozen")
     child_counter += 1
@@ -214,19 +216,19 @@ if torch.cuda.device_count() > 1:
 
 
 # Gather and show the parameters to be optimized/updated in this run.
-params_to_update = model_ft.parameters()
+params_to_update = []
 if feature_extract:
     params_to_update = []
     for name, param in model_ft.named_parameters():
         if param.requires_grad:
             params_to_update.append(param)
             print(name)
+print(params_to_update)
 
 
 # Print the number of parameters being trained
 total_params = sum(p.numel() for p in model_ft.parameters())
-total_trainable_params = sum(
-    p.numel() for p in model_ft.parameters() if p.requires_grad)
+total_trainable_params = sum(p.numel() for p in model_ft.parameters() if p.requires_grad)
 print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
 
 
