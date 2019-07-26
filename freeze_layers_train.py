@@ -1,3 +1,27 @@
+'''
+
+Transfer learning on ResNet34.
+Iterates through one fold
+Resets last fully connected layer and last two children of last block
+Expects data to be a .tar.gz file with the following structure
+
+tar
+│
+└───fold0
+│   │
+│   └───train
+│   │   │   file111.png
+│   │   │   ...
+│   │
+│   └───val
+│       │   file112.png
+│       │   ...
+│
+└───fold1
+    │   ...
+
+'''
+
 from __future__ import print_function
 from __future__ import division
 import torch
@@ -11,7 +35,7 @@ import time
 import os
 import copy
 import argparse
-from utils import train_model_inception, list_plot_multi, initialize_model, set_parameter_requires_grad, list_plot
+from utils import train_model, list_plot, make_weights_for_balanced_classes
 import tarfile
 import shutil
 
@@ -85,16 +109,16 @@ if __name__ == "__main__":
     fold_num = args.fold_num
     lr = args.learning_rate
 
-tar_dir = '/home/jfeinst/Desktop/voronoi_diagrams/test.tar.gz'
-tar_extract_path = '/home/jfeinst/Desktop/'
+#tar_dir = '/home/jfeinst/Desktop/voronoi_diagrams/test.tar.gz'
+#tar_extract_path = '/home/jfeinst/Desktop/'
 tar_name = tar_dir.split('/')[-1].split('.')[0]
-num_epochs = 2
+# num_epochs = 2
 
-# Data transformations - normalize values are resnet standard
-data_transforms = {'train': transforms.Compose([transforms.Resize(299),
+# Data transformations - normalize values and resize are resnet standard
+data_transforms = {'train': transforms.Compose([transforms.Resize(224),
                                                 transforms.ToTensor(),
                                                 transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])]),
-                   'val': transforms.Compose([transforms.Resize(299),
+                   'val': transforms.Compose([transforms.Resize(224),
                                               transforms.ToTensor(),
                                               transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])}
 
@@ -112,9 +136,10 @@ print('Current device: ' + str(device) + '\n')
 if torch.cuda.device_count() > 1:
     print("Using " + str(torch.cuda.device_count()) + " GPUs...")
 
-print('--Fold {}--'.format(fold_num + 1))
 
+print('--Fold {}--'.format(fold_num + 1))
 print('Extracting tarball...')
+
 
 # Untar tarball containing data
 with tarfile.open(tar_dir) as tar:
@@ -122,49 +147,81 @@ with tarfile.open(tar_dir) as tar:
                         tarinfo.name.startswith(tar_name + '/' + fold_lst[fold_num])]
     tar.extractall(members=subdir_and_files, path=tar_extract_path)
 
+
 # Forming the dataset and dataloader
 image_datasets = {x: datasets.ImageFolder(os.path.join(tar_extract_path, tar_name, fold_lst[fold_num], x),
                                           data_transforms[x]) for x in ['train', 'val']}
+
+weights_dict = {x: make_weights_for_balanced_classes(image_datasets[x].imgs,
+                                                     len(image_datasets[x].classes)) for x in ['train', 'val']}
+
+sampler_dict = {x: torch.utils.data.sampler.WeightedRandomSampler(torch.DoubleTensor(weights_dict[x]),
+                                                                  len(torch.DoubleTensor(weights_dict[x]))) for x in ['train', 'val']}
+
+
+dataloaders_dict_sampler = {x: torch.utils.data.DataLoader(image_datasets[x],
+                                                   batch_size=batch_size,
+                                                   shuffle=False,
+                                                   sampler=sampler_dict[x],
+                                                   num_workers=8) for x in ['train', 'val']}
+
 dataloaders_dict = {x: torch.utils.data.DataLoader(image_datasets[x],
                                                    batch_size=batch_size,
                                                    shuffle=True,
-                                                   num_workers=4) for x in ['train', 'val']}
+                                                   num_workers=8) for x in ['train', 'val']}
+
 
 class_names = image_datasets['train'].classes
 num_classes = len(class_names)
 
+
 print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of validation dataset: ' +
       str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
 
+
 # Initialize the model
-model_ft = models.inception_v3(pretrained=True)
-set_parameter_requires_grad(model_ft, feature_extract)
+model_ft = models.resnet34(pretrained=True)
 num_ftrs = model_ft.fc.in_features
-model_ft.AuxLogits.fc = nn.Linear(768, num_classes)
-model_ft.fc = nn.Linear(2048, num_classes)
+model_ft.fc = nn.Linear(num_ftrs, num_classes)
 
 
+# Freeze layers below child 7
 child_counter = 0
 for child in model_ft.children():
-    if child_counter < 16:
+    if child_counter < 7:
         print("child ",child_counter," was frozen")
         for param in child.parameters():
             param.requires_grad = False
+    elif child_counter == 7:
+        children_of_child_counter = 0
+        for children_of_child in child.children():
+            if children_of_child_counter < 1:
+                for param in children_of_child.parameters():
+                    param.requires_grad = False
+                print('child ', children_of_child_counter, 'of child', child_counter, ' was frozen')
     else:
         print("child ",child_counter," was not frozen")
     child_counter += 1
 
+
 # Send the model to GPU
 model_ft = model_ft.to(device)
+
 
 # Use multiple GPUs if available
 if torch.cuda.device_count() > 1:
     model_ft = nn.DataParallel(model_ft)
 
-# Gather the parameters to be optimized/updated in this run.
-for name, param in model_ft.named_parameters():
-    if param.requires_grad == True:
-        print(name)
+
+# Gather and show the parameters to be optimized/updated in this run.
+params_to_update = model_ft.parameters()
+if feature_extract:
+    params_to_update = []
+    for name, param in model_ft.named_parameters():
+        if param.requires_grad:
+            params_to_update.append(param)
+            print(name)
+
 
 # Print the number of parameters being trained
 total_params = sum(p.numel() for p in model_ft.parameters())
@@ -172,58 +229,50 @@ total_trainable_params = sum(
     p.numel() for p in model_ft.parameters() if p.requires_grad)
 print('Total parameters: ' + str(total_params) + '    Training parameters: ' + str(total_trainable_params) + '\n')
 
+
 # Observe that all parameters are being optimized
 # optimizer_ft = optim.SGD(params_to_update, lr=0.001, momentum=0.9)
-optimizer_ft = optim.Adam(model_ft.parameters(),
+optimizer_ft = optim.Adam(params_to_update,
                           lr=lr,
                           betas=(0.9, 0.999),
                           eps=1e-8,
                           weight_decay=0.0,
                           amsgrad=False)
 
-scheduler = torch.optim.lr_scheduler.StepLR(step_size=5, optimizer=optimizer_ft, gamma=0.1)
 
-# Setup the loss fxn
+# Learning rate scheduler
+scheduler = torch.optim.lr_scheduler.StepLR(step_size=1, optimizer=optimizer_ft, gamma=0.95)
+
+
+# Setup the loss fxn, using the weighted loss
 weights = torch.tensor([1.0, 5.0]).to(device)
 criterion_weighted = nn.CrossEntropyLoss(weight=weights, reduction='mean')
 criterion = nn.CrossEntropyLoss()
 
+
 # Train and evaluate
-model_ft, hist = train_model_inception(model_ft,
-                                       dataloaders_dict,
-                                       criterion_weighted,
-                                       optimizer_ft,
-                                       num_epochs=num_epochs,
-                                       learning_rate_scheduler=scheduler,
-                                       is_inception=True,
-                                       num_classes=num_classes)
+trained_model_ft, val_acc_history, val_loss_history, \
+train_acc_history, train_loss_history = train_model(model_ft,
+                                                    dataloaders_dict,
+                                                    criterion_weighted,
+                                                    optimizer_ft,
+                                                    num_epochs=num_epochs,
+                                                    num_classes=num_classes,
+                                                    learning_rate_scheduler=scheduler)
 
 # Save the model
-torch.save(model_ft.state_dict(), './log/inception' + fold_lst[fold_num] + '.pt')
+torch.save(trained_model_ft.state_dict(), './log/resnet' + fold_lst[fold_num] + '.pt')
 
-print('History: ' + str(hist))
+print('Validation accuracy: ' + str(val_acc_history))
+print('Validation loss: ' + str(val_loss_history))
+print('Training accuracy: ' + str(train_acc_history))
+print('Training loss: ' + str(train_loss_history))
 
 print('Plotting data...')
-list_plot(hist, 'Val Acc')
-
-'''
-# Save the accuracy and loss history
-print('Saving history...')
-final_val_acc_history.append(val_acc_history)
-final_val_loss_history.append(val_loss_history)
-final_train_acc_history.append(train_acc_history)
-final_train_loss_history.append(train_loss_history)
-'''
+list_plot(train_acc_history, 'Training_Accuracy')
+list_plot(train_loss_history, 'Training_Loss')
+list_plot(val_acc_history, 'Validation_Accuracy')
+list_plot(val_loss_history, 'Validation_loss')
 
 # Delete directory to make room for next fold
 shutil.rmtree(tar_extract_path + tar_name)
-
-
-'''
-# Plot the accuracy and loss
-print('Plotting data...')
-list_plot_multi(final_train_acc_history, 'Training_Accuracy')
-list_plot_multi(final_train_loss_history, 'Training_Loss')
-list_plot_multi(final_val_acc_history, 'Validation_Accuracy')
-list_plot_multi(final_val_loss_history, 'Validation_loss')
-'''
