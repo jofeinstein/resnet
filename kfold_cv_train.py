@@ -1,3 +1,26 @@
+'''
+
+Transfer learning on ResNet34.
+Iterates through k-folds
+Expects data to be a .tar.gz file with the following structure
+Resets only the last fully connected layer
+
+tar
+│
+└───fold0
+│   │
+│   └───train
+│   │   │   file111.png
+│   │   │   ...
+│   │
+│   └───val
+│       │   file112.png
+│       │   ...
+│
+└───fold1
+    │   ...
+
+'''
 from __future__ import print_function
 from __future__ import division
 import torch
@@ -97,14 +120,15 @@ if torch.cuda.device_count() > 1:
 
 for i in range(fold):
     print('--Fold {}--'.format(i+1))
-
     print('Extracting tarball...')
+
 
     # Untar tarball containing data
     with tarfile.open(tar_dir) as tar:
         subdir_and_files = [tarinfo for tarinfo in tar.getmembers() if
                             tarinfo.name.startswith(tar_name + '/' + fold_lst[i])]
         tar.extractall(members=subdir_and_files, path=tar_extract_path)
+
 
     # Forming the dataset and dataloader
     image_datasets = {x: datasets.ImageFolder(os.path.join(tar_extract_path, tar_name, fold_lst[i], x),
@@ -114,11 +138,14 @@ for i in range(fold):
                                                        shuffle=True,
                                                        num_workers=4) for x in ['train', 'val']}
 
+
     class_names = image_datasets['train'].classes
     num_classes = len(class_names)
 
+
     print('Size of training dataset: ' + str((len(image_datasets['train']))) + '    Size of validation dataset: ' +
           str(len(image_datasets['val'])) + '    Number of classes: ' + str(num_classes))
+
 
     # Initialize the model
     model_ft, input_size = initialize_model(num_classes, feature_extract, use_pretrained=True)
@@ -130,13 +157,14 @@ for i in range(fold):
     if torch.cuda.device_count() > 1:
         model_ft = nn.DataParallel(model_ft)
 
-    # Gather the parameters to be optimized/updated in this run.
+    # Gather and show the parameters to be optimized/updated in this run.
     params_to_update = model_ft.parameters()
     if feature_extract:
         params_to_update = []
         for name, param in model_ft.named_parameters():
             if param.requires_grad:
                 params_to_update.append(param)
+                print(name)
 
     # Print the number of parameters being trained
     total_params = sum(p.numel() for p in model_ft.parameters())
@@ -162,7 +190,8 @@ for i in range(fold):
                                                         dataloaders_dict,
                                                         criterion,
                                                         optimizer_ft,
-                                                        num_epochs=num_epochs)
+                                                        num_epochs=num_epochs,
+                                                        learning_rate_scheduler=None)
 
     # Save the model
     torch.save(trained_model_ft.state_dict(), './log/resnet34' + fold_lst[i] + '.pt')

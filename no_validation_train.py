@@ -1,3 +1,11 @@
+'''
+
+Transfer learning with ResNet34
+Used to train model on entire dataset after hyperparameter tuning
+
+'''
+
+
 from __future__ import print_function
 from __future__ import division
 import torch
