@@ -223,7 +223,6 @@ if feature_extract:
         if param.requires_grad:
             params_to_update.append(param)
             print(name)
-print(params_to_update)
 
 
 # Print the number of parameters being trained
@@ -255,7 +254,7 @@ criterion = nn.CrossEntropyLoss()
 # Train and evaluate
 trained_model_ft, val_acc_history, val_loss_history, \
 train_acc_history, train_loss_history = train_model(model_ft,
-                                                    dataloaders_dict,
+                                                    dataloaders_dict_sampler,
                                                     criterion_weighted,
                                                     optimizer_ft,
                                                     num_epochs=num_epochs,
