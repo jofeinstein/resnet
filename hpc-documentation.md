@@ -1,0 +1,32 @@
+1. Submit the job below
+
+    #!/bin/bash
+    #PBS -l nodes=1:ppn=20
+    #PBS -l walltime=72:00:00
+    #PBS -q k40
+    #PBS -N bionoi_autoencoder
+    #PBS -A loni_bionoi01
+    #PBS -j oe
+
+    sleep 100000000000
+
+2. ssh into the given node
+3. use the following commands
+
+mkdir -p /var/scratch/jfeins1/
+singularity shell -B /project,/work,/var --nv /home/admin/singularity/pytorch-1.0.0-dockerhub-v3.simg
+unset PYTHONPATH
+unset PYTHONHOME
+
+source activate pytorch
+
+export LD_LIBRARY_PATH=/usr/local/onnx/onnx:/usr/local/nvidia/lib:/usr/local/nvidia/lib64:/usr/lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:/usr/lib64:/.singularity.d/libs
+cd /work/jfeins1/resnet-test
+torch.cuda.is_available()
+
+stdbuf -o0 python kfoldvc-resnet.py -batch_size 512 -fold_num 0 > progress-fold0.log 2>&1
+python resnet-no-validation.py -data_dir PATH_TO_DATA_DIR -batch_size 512 -model_file ./log/resnet34noval.pt
+
+stdbuf -o0 python freeze_layers_train.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.001 > progress-optimizer-randomweightedsamlper.log 2>&1
+stdbuf -o0 python inception.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.002 > progress-inception.log 2>&1
+stdbuf -o0 python resnet18.py -tar_extract_path /var/scratch/jfeins1/ -batch_size 512 -epoch 100 -learning_rate 0.001 > progress-resnet18.log 2>&1
