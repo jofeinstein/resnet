@@ -47,6 +47,7 @@ usage: python kfold_cv_train.py -tar_extract_path /var/scratch/user/ -tar_dir /w
 
 * random_forest_clf.py: Run random forest classifier and multilayer perception on a binary dataset. Expects same directory structure as above.
 ```
+parameters are hardcoded in file. must change tar_dir and tar_extract_path
 ```
 
 * no_validation_train.py: Train a ResNet model with no validation. Expects data to be in a directory, although data can be several layers deep.
